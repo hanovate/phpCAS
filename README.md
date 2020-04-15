@@ -2,24 +2,22 @@ phpCAS for Laravel
 ==================
 
 This is a fork of apereo/phpCAS to make it more compatible with Laravel framework.
+This is a dependency of the [hanovate/cas](https://github.com/hanovate/cas) package.
 
 phpCAS is an authentication library that allows PHP applications to easily authenticate
 users via a Central Authentication Service (CAS) server.  This has been updated to
 utilize Laravel's session management methods instead of native PHP's $_SESSION, $_SERVER,
-$_POST, and $_GET variable.
+$_POST, and $_GET variables.
 
 Checked with Laravel 7.6.0 as of 2020-04-14
 
-For the usage of phpCAS, please see the wiki website for more information:
 
+For the usage of phpCAS, please see the wiki website for more information:
 https://apereo.github.io/phpCAS/
 
 phpCAS API documentation can be found here:
-
 https://apereo.github.io/phpCAS/api/
 
-
-[![Build Status](https://travis-ci.org/apereo/phpCAS.png)](https://travis-ci.org/apereo/phpCAS)
 
 LICENSE
 -------
