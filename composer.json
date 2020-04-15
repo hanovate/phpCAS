@@ -1,16 +1,17 @@
 {
-    "name": "apereo/phpcas",
-    "description": "Provides a simple API for authenticating users against a CAS server",
-    "keywords": ["cas", "jasig", "apereo"],
+    "name": "hanovate/phpcas",
+    "description": "Provides a simple API for authenticating users against a CAS server for Laravel",
+    "keywords": ["cas", "jasig", "apereo", "hanovate", "laravel"],
     "homepage": "https://wiki.jasig.org/display/CASC/phpCAS",
     "type": "library",
     "license": "Apache-2.0",
     "authors": [
         {"name": "Joachim Fritschi", "homepage": "https://wiki.jasig.org/display/~fritschi"},
-        {"name": "Adam Franco", "homepage": "https://wiki.jasig.org/display/~adamfranco"}
+        {"name": "Adam Franco", "homepage": "https://wiki.jasig.org/display/~adamfranco"},
+        {"name": "Michael Han", "email": "mhan@hanovate.com"}
     ],
     "require": {
-        "php": ">=5.4.0",
+        "php": ">=7.2.0",
         "ext-curl": "*",
         "psr/log": "^1.0.0"
     },

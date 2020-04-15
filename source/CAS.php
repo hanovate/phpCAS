@@ -41,8 +41,8 @@ use Psr\Log\LoggerInterface;
 // hack by Vangelis Haniotakis to handle the absence of $_SERVER['REQUEST_URI']
 // in IIS
 //
-if (!isset($_SERVER['REQUEST_URI']) && isset($_SERVER['SCRIPT_NAME']) && isset($_SERVER['QUERY_STRING'])) {
-    $_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] . '?' . $_SERVER['QUERY_STRING'];
+if (is_null(request()->server('REQUEST_URI',null)) && !is_null(request()->server('SCRIPT_NAME',null)) && !is_null(request()->server('QUERY_STRING',null))) {
+    $_SERVER['REQUEST_URI'] = request()->server('SCRIPT_NAME') . '?' . request()->server('QUERY_STRING');
 }
 
 

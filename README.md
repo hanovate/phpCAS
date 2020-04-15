@@ -5,7 +5,8 @@ This is a fork of apereo/phpCAS to make it more compatible with Laravel framewor
 
 phpCAS is an authentication library that allows PHP applications to easily authenticate
 users via a Central Authentication Service (CAS) server.  This has been updated to
-utilize Laravel's session management methods instead of native PHP's $_SESSION variable.
+utilize Laravel's session management methods instead of native PHP's $_SESSION, $_SERVER,
+$_POST, and $_GET variable.
 
 Checked with Laravel 7.6.0 as of 2020-04-14
 

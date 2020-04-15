@@ -37,7 +37,7 @@ jobs:
       token:
         secure: IQPP9ytdAxMQpXdfHsbnWaly7BiORVeCCfgKBPtQqtuakTBkNltPMmPHIhH2ihnQ0/fOUL4DpbiQdCIEVVIQgerdWK+WjMhGmyRyt8froqT1GOJfcKXMBxxaLWpQS53R/jWt4cWs9DNgkFXtbe5MlV/czaoFsMQowoEV+fnwYKg=
       on:
-        repo: apereo/phpCAS
+        repo: hanovate/phpCAS
         tags: true
 notifications:
   email: false

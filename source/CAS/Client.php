@@ -937,15 +937,16 @@ class CAS_Client
         $this->setSessionHandler($sessionHandler);
 
         if (!$this->_isLogoutRequest()) {
-            if (session_id() === "") {
+            if (session()->getId() === "") {
                 // skip Session Handling for logout requests and if don't want it
-                session_start();
-                phpCAS :: trace("Starting a new session " . session_id());
+                session()->start();
+                phpCAS :: trace("Starting a new session " . session()->getId());
             }
             // init phpCAS session array
-            if (!isset($_SESSION[static::PHPCAS_SESSION_PREFIX])
-                || !is_array($_SESSION[static::PHPCAS_SESSION_PREFIX])) {
-                $_SESSION[static::PHPCAS_SESSION_PREFIX] = array();
+            if (!(session()->has(static::PHPCAS_SESSION_PREFIX))
+                || !is_array(session(static::PHPCAS_SESSION_PREFIX))) {
+                session()->put(static::PHPCAS_SESSION_PREFIX,[]);
+                session()->save();
             }
         }
 
@@ -963,9 +964,8 @@ class CAS_Client
             if (!$this->hasSessionValue('service_cookies')) {
                 $this->setSessionValue('service_cookies', array());
             }
-            // TODO remove explicit call to $_SESSION
             $this->_serviceCookieJar = new CAS_CookieJar(
-                $_SESSION[static::PHPCAS_SESSION_PREFIX]['service_cookies']
+                session(static::PHPCAS_SESSION_PREFIX.'.service_cookies')
             );
         }
 
@@ -1013,10 +1013,13 @@ class CAS_Client
 
         // set to callback mode if PgtIou and PgtId CGI GET parameters are provided
         if ( $this->isProxy() ) {
-            if(!empty($_GET['pgtIou'])&&!empty($_GET['pgtId'])) {
+            $tmp = parse_url(request()->getRequestUri());
+            parse_str($tmp['query'] ?? null,$urlparam);
+
+            if(!empty($urlparam['pgtIou'])&&!empty($urlparam['pgtId'])) {
                 $this->_setCallbackMode(true);
                 $this->_setCallbackModeUsingPost(false);
-            } elseif (!empty($_POST['pgtIou'])&&!empty($_POST['pgtId'])) {
+            } elseif (!empty($urlparam['pgtIou'])&&!empty($urlparam['pgtId'])) {
                 $this->_setCallbackMode(true);
                 $this->_setCallbackModeUsingPost(true);
             } else {
@@ -1035,13 +1038,15 @@ class CAS_Client
                 );
             }
         } else {
+            $tmp = parse_url(request()->getRequestUri());
+            parse_str($tmp['query'] ?? null,$urlparam);
             //normal mode: get ticket and remove it from CGI parameters for
             // developers
-            $ticket = (isset($_GET['ticket']) ? $_GET['ticket'] : null);
+            $ticket = (isset($urlparam['ticket']) ? $urlparam['ticket'] : null);
             if (preg_match('/^[SP]T-/', $ticket) ) {
                 phpCAS::trace('Ticket \''.$ticket.'\' found');
                 $this->setTicket($ticket);
-                unset($_GET['ticket']);
+                unset($urlparam['ticket']);
             } else if ( !empty($ticket) ) {
                 //ill-formed ticket, halt
                 phpCAS::error(
@@ -1128,8 +1133,8 @@ class CAS_Client
     {
         $this->validateSession($key);
 
-        if (isset($_SESSION[static::PHPCAS_SESSION_PREFIX][$key])) {
-            return $_SESSION[static::PHPCAS_SESSION_PREFIX][$key];
+        if (session()->has(static::PHPCAS_SESSION_PREFIX.'.'.$key)) {
+            return session(static::PHPCAS_SESSION_PREFIX.'.'.$key);
         }
 
         return $default;
@@ -1149,7 +1154,7 @@ class CAS_Client
     {
         $this->validateSession($key);
 
-        return isset($_SESSION[static::PHPCAS_SESSION_PREFIX][$key]);
+        return (session().has(static::PHPCAS_SESSION_PREFIX.'.'.$key));
     }
 
     /**
@@ -1164,7 +1169,8 @@ class CAS_Client
     {
         $this->validateSession($key);
 
-        $_SESSION[static::PHPCAS_SESSION_PREFIX][$key] = $value;
+        session()->put(static::PHPCAS_SESSION_PREFIX.'.'.$key,$value);
+        session()->save();
     }
 
     /**
@@ -1176,8 +1182,9 @@ class CAS_Client
     {
         $this->validateSession($key);
 
-        if (isset($_SESSION[static::PHPCAS_SESSION_PREFIX][$key])) {
-            unset($_SESSION[static::PHPCAS_SESSION_PREFIX][$key]);
+        if (session()->has(static::PHPCAS_SESSION_PREFIX.'.'.$key)) {
+            session()->forget(static::PHPCAS_SESSION_PREFIX.'.'.$key);
+            session()->save();
             return true;
         }
 
@@ -1189,7 +1196,8 @@ class CAS_Client
      */
     protected function clearSessionValues()
     {
-        unset($_SESSION[static::PHPCAS_SESSION_PREFIX]);
+        session()->forget(static::PHPCAS_SESSION_PREFIX);
+        session()->save();
     }
 
     /**
@@ -1220,16 +1228,20 @@ class CAS_Client
         phpCAS::traceBegin();
         if ($this->getChangeSessionID()) {
             if (!empty($this->_user)) {
-                $old_session = $_SESSION;
-                phpCAS :: trace("Killing session: ". session_id());
-                session_destroy();
+                $old_session = session()->all();
+                phpCAS :: trace("Killing session: ". session()->getId());
+                session()->flush();
+                session()->save();
                 // set up a new session, of name based on the ticket
                 $session_id = preg_replace('/[^a-zA-Z0-9\-]/', '', $ticket);
                 phpCAS :: trace("Starting session: ". $session_id);
-                session_id($session_id);
-                session_start();
+                session()->setId($session_id);
+                session()->start();
                 phpCAS :: trace("Restoring old session vars");
-                $_SESSION = $old_session;
+                foreach ($old_session as $k=>$v) {
+                    session()->put($k,$v);
+                }
+                session()->save();
             } else {
                 phpCAS :: trace (
                     'Session should only be renamed after successfull authentication'
@@ -1559,7 +1571,8 @@ class CAS_Client
                 );
                 if ($this->_clearTicketsFromUrl) {
                     phpCAS::trace("Prepare redirect to : ".$this->getURL());
-                    session_write_close();
+                    // session_write_close();
+                    session()->save();
                     header('Location: '.$this->getURL());
                     flush();
                     phpCAS::traceExit();
@@ -1677,7 +1690,8 @@ class CAS_Client
                 // security precaution to prevent a ticket in the HTTP_REFERRER
                 if ($this->_clearTicketsFromUrl) {
                     phpCAS::trace("Prepare redirect to : ".$this->getURL());
-                    session_write_close();
+                    // session_write_close();
+                    session()->save();
                     header('Location: '.$this->getURL());
                     flush();
                     phpCAS::traceExit();
@@ -1692,7 +1706,7 @@ class CAS_Client
     /**
      * This method tells if the current session is authenticated.
      *
-     * @return bool true if authenticated based soley on $_SESSION variable
+     * @return bool true if authenticated based soley on session variable
      */
     public function isSessionAuthenticated ()
     {
@@ -1713,7 +1727,7 @@ class CAS_Client
 
         if ( $this->_isCallbackMode() ) {
             // Rebroadcast the pgtIou and pgtId to all nodes
-            if ($this->_rebroadcast&&!isset($_POST['rebroadcast'])) {
+            if ($this->_rebroadcast&&is_null(request()->post('rebroadcast',null))) {
                 $this->_rebroadcast(self::PGTIOU);
             }
             $this->_callback();
@@ -1815,7 +1829,8 @@ class CAS_Client
     {
         phpCAS::traceBegin();
         $cas_url = $this->getServerLoginURL($gateway, $renew);
-        session_write_close();
+        // session_write_close();
+        session()->save();
         if (php_sapi_name() === 'cli') {
             @header('Location: '.$cas_url);
         } else {
@@ -1856,9 +1871,13 @@ class CAS_Client
         header('Location: '.$cas_url);
         phpCAS::trace("Prepare redirect to : ".$cas_url);
 
-        phpCAS::trace("Destroying session : ".session_id());
+        phpCAS::trace("Destroying session : ".session()->getId());
+        /*
         session_unset();
         session_destroy();
+         */
+        session()->flush();
+        session()->save();
         if (session_status() === PHP_SESSION_NONE) {
             phpCAS::trace("Session terminated");
         } else {
@@ -1880,7 +1899,7 @@ class CAS_Client
      */
     private function _isLogoutRequest()
     {
-        return !empty($_POST['logoutRequest']);
+        return !empty(request()->post('logoutRequest'));
     }
 
     /**
@@ -1909,14 +1928,14 @@ class CAS_Client
             );
         }
         phpCAS::trace("Logout requested");
-        $decoded_logout_rq = urldecode($_POST['logoutRequest']);
+        $decoded_logout_rq = urldecode(request()->post('logoutRequest'));
         phpCAS::trace("SAML REQUEST: ".$decoded_logout_rq);
         $allowed = false;
         if ($check_client) {
             if ($allowed_clients === array()) {
                 $allowed_clients = array( $this->_getServerHostname() );
             }
-            $client_ip = $_SERVER['REMOTE_ADDR'];
+            $client_ip = request()->server('REMOTE_ADDR');
             $client = gethostbyaddr($client_ip);
             phpCAS::trace("Client: ".$client."/".$client_ip);
             foreach ($allowed_clients as $allowed_client) {
@@ -1943,7 +1962,7 @@ class CAS_Client
         if ($allowed) {
             phpCAS::trace("Logout command allowed");
             // Rebroadcast the logout request
-            if ($this->_rebroadcast && !isset($_POST['rebroadcast'])) {
+            if ($this->_rebroadcast && is_null(request()->post('rebroadcast',null))) {
                 $this->_rebroadcast(self::LOGOUT);
             }
             // Extract the ticket from the SAML Request
@@ -1973,19 +1992,24 @@ class CAS_Client
                 phpCAS::trace("Session id: ".$session_id);
 
                 // destroy a possible application session created before phpcas
-                if (session_id() !== "") {
-                    session_unset();
-                    session_destroy();
+                if (session()->getId() !== "") {
+                    // session_unset();
+                    // session_destroy();
+                    session()->flush();
+                    session()->save();
                 }
                 // fix session ID
-                session_id($session_id);
-                $_COOKIE[session_name()]=$session_id;
-                $_GET[session_name()]=$session_id;
+                session()->setId($session_id);
+                $_COOKIE[session()->getName()]=$session_id;
+                $urlparam[session_name()]=$session_id;
 
                 // Overwrite session
-                session_start();
-                session_unset();
-                session_destroy();
+                // session_start();
+                session()->start();
+                // session_unset();
+                // session_destroy();
+                session()->flush();
+                session()->save();
                 phpCAS::trace("Session ". $session_id . " destroyed");
             }
         } else {
@@ -2549,7 +2573,7 @@ class CAS_Client
             // remove the ticket if present in the URL
             $final_uri = 'https://';
             $final_uri .= $this->_getClientUrl();
-            $request_uri = $_SERVER['REQUEST_URI'];
+            $request_uri = request()->server('REQUEST_URI');
             $request_uri = preg_replace('/\?.*$/', '', $request_uri);
             $final_uri .= $request_uri;
             $this->_callback_url = $final_uri;
@@ -2585,11 +2609,13 @@ class CAS_Client
     {
         phpCAS::traceBegin();
         if ($this->_isCallbackModeUsingPost()) {
-            $pgtId = $_POST['pgtId'];
-            $pgtIou = $_POST['pgtIou'];
+            $pgtId = request()->post('pgtId');
+            $pgtIou = request()->post('pgtIou');
         } else {
-            $pgtId = $_GET['pgtId'];
-            $pgtIou = $_GET['pgtIou'];
+            $tmp = parse_url(request()->getRequestUri());
+            parse_str($tmp['query'] ?? null,$urlparam);
+            $pgtId = $urlparam['pgtId'];
+            $pgtIou = $urlparam['pgtIou'];
         }
         if (preg_match('/^PGTIOU-[\.\-\w]+$/', $pgtIou)) {
             if (preg_match('/^[PT]GT-[\.\-\w]+$/', $pgtId)) {
@@ -2630,10 +2656,10 @@ class CAS_Client
      */
     private function isXmlResponse()
     {
-        if (!array_key_exists('HTTP_ACCEPT', $_SERVER)) {
+        if (!array_key_exists('HTTP_ACCEPT', request()->server())) {
             return false;
         }
-        if (strpos($_SERVER['HTTP_ACCEPT'], 'application/xml') === false && strpos($_SERVER['HTTP_ACCEPT'], 'text/xml') === false) {
+        if (strpos(request()->server('HTTP_ACCEPT'), 'application/xml') === false && strpos(request()->server('HTTP_ACCEPT'), 'text/xml') === false) {
             return false;
         }
 
@@ -3918,7 +3944,7 @@ class CAS_Client
             $final_uri .= '://';
 
             $final_uri .= $this->_getClientUrl();
-            $request_uri = explode('?', $_SERVER['REQUEST_URI'], 2);
+            $request_uri = explode('?', request()->server('REQUEST_URI'), 2);
             $final_uri .= $request_uri[0];
 
             if (isset($request_uri[1]) && $request_uri[1]) {
@@ -3962,25 +3988,25 @@ class CAS_Client
      */
     private function _getClientUrl()
     {
-        if (!empty($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+        if (!empty(request()->server('HTTP_X_FORWARDED_HOST'))) {
             // explode the host list separated by comma and use the first host
-            $hosts = explode(',', $_SERVER['HTTP_X_FORWARDED_HOST']);
+            $hosts = explode(',', request()->server('HTTP_X_FORWARDED_HOST'));
             // see rfc7239#5.3 and rfc7230#2.7.1: port is in HTTP_X_FORWARDED_HOST if non default
             return $hosts[0];
-        } else if (!empty($_SERVER['HTTP_X_FORWARDED_SERVER'])) {
-            $server_url = $_SERVER['HTTP_X_FORWARDED_SERVER'];
+        } else if (!empty(request()->server('HTTP_X_FORWARDED_SERVER'))) {
+            $server_url = request()->server('HTTP_X_FORWARDED_SERVER');
         } else {
-            if (empty($_SERVER['SERVER_NAME'])) {
-                $server_url = $_SERVER['HTTP_HOST'];
+            if (empty(request()->server('SERVER_NAME'))) {
+                $server_url = request()->server('HTTP_HOST');
             } else {
-                $server_url = $_SERVER['SERVER_NAME'];
+                $server_url = request()->server('SERVER_NAME');
             }
         }
         if (!strpos($server_url, ':')) {
-            if (empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
-                $server_port = $_SERVER['SERVER_PORT'];
+            if (empty(request()->server('HTTP_X_FORWARDED_PORT'))) {
+                $server_port = request()->server('SERVER_PORT');
             } else {
-                $ports = explode(',', $_SERVER['HTTP_X_FORWARDED_PORT']);
+                $ports = explode(',', request()->server('HTTP_X_FORWARDED_PORT'));
                 $server_port = $ports[0];
             }
 
@@ -4001,13 +4027,13 @@ class CAS_Client
      */
     private function _isHttps()
     {
-        if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
-            return ($_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_PROTOCOL'])) {
-            return ($_SERVER['HTTP_X_FORWARDED_PROTOCOL'] === 'https');
-        } elseif ( isset($_SERVER['HTTPS'])
-            && !empty($_SERVER['HTTPS'])
-            && strcasecmp($_SERVER['HTTPS'], 'off') !== 0
+        if (!empty(request()->server('HTTP_X_FORWARDED_PROTO'))) {
+            return (request()->server('HTTP_X_FORWARDED_PROTO') === 'https');
+        } elseif (!empty(request()->server('HTTP_X_FORWARDED_PROTOCOL'))) {
+            return (request()->server('HTTP_X_FORWARDED_PROTOCOL') === 'https');
+        } elseif ( !is_null(request()->server('HTTPS',null))
+            && !empty(request()->server('HTTPS'))
+            && strcasecmp(request()->server('HTTPS'), 'off') !== 0
         ) {
             return true;
         }
@@ -4146,7 +4172,7 @@ class CAS_Client
         $this->printHTMLHeader($lang->getAuthenticationFailed());
         printf(
             $lang->getYouWereNotAuthenticated(), htmlentities($this->getURL()),
-            isset($_SERVER['SERVER_ADMIN']) ? $_SERVER['SERVER_ADMIN']:''
+            !is_null(request()->server('SERVER_ADMIN',null)) ? request()->server('SERVER_ADMIN'):''
         );
         phpCAS::trace('CAS URL: '.$cas_url);
         phpCAS::trace('Authentication failure: '.$failure);
@@ -4280,11 +4306,11 @@ class CAS_Client
         CURLOPT_TIMEOUT => 4);
 
         // Try to determine the IP address of the server
-        if (!empty($_SERVER['SERVER_ADDR'])) {
-            $ip = $_SERVER['SERVER_ADDR'];
-        } else if (!empty($_SERVER['LOCAL_ADDR'])) {
+        if (!empty(request()->server('SERVER_ADDR'))) {
+            $ip = request()->server('SERVER_ADDR');
+        } else if (!empty(request()->server('LOCAL_ADDR'))) {
             // IIS 7
-            $ip = $_SERVER['LOCAL_ADDR'];
+            $ip = request()->server('LOCAL_ADDR');
         }
         // Try to determine the DNS name of the server
         if (!empty($ip)) {
@@ -4299,12 +4325,12 @@ class CAS_Client
             ) {
                 phpCAS::trace(
                     'Rebroadcast target URL: '.$this->_rebroadcast_nodes[$i]
-                    .$_SERVER['REQUEST_URI']
+                    .request()->server('REQUEST_URI')
                 );
                 $className = $this->_requestImplementation;
                 $request = new $className();
 
-                $url = $this->_rebroadcast_nodes[$i].$_SERVER['REQUEST_URI'];
+                $url = $this->_rebroadcast_nodes[$i].request()->server('REQUEST_URI');
                 $request->setUrl($url);
 
                 if (count($this->_rebroadcast_headers)) {
@@ -4315,7 +4341,7 @@ class CAS_Client
                 if ($type == self::LOGOUT) {
                     // Logout request
                     $request->setPostBody(
-                        'rebroadcast=false&logoutRequest='.$_POST['logoutRequest']
+                        'rebroadcast=false&logoutRequest='.request()->post('logoutRequest')
                     );
                 } else if ($type == self::PGTIOU) {
                     // pgtIou/pgtId rebroadcast
