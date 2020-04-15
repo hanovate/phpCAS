@@ -1230,7 +1230,7 @@ class CAS_Client
             if (!empty($this->_user)) {
                 $old_session = session()->all();
                 phpCAS :: trace("Killing session: ". session()->getId());
-                session()->flush();
+                session()->forget('phpCAS');
                 session()->save();
                 // set up a new session, of name based on the ticket
                 $session_id = preg_replace('/[^a-zA-Z0-9\-]/', '', $ticket);
@@ -1868,6 +1868,8 @@ class CAS_Client
             $cas_url = $cas_url . $paramSeparator . "service="
                 . urlencode($params['service']);
         }
+        session()->forget('phpCAS');
+        session()->save();
         header('Location: '.$cas_url);
         phpCAS::trace("Prepare redirect to : ".$cas_url);
 
@@ -1876,8 +1878,8 @@ class CAS_Client
         session_unset();
         session_destroy();
          */
-        session()->flush();
-        session()->save();
+        // session()->flush();
+        // session()->save();
         if (session_status() === PHP_SESSION_NONE) {
             phpCAS::trace("Session terminated");
         } else {
@@ -1995,7 +1997,7 @@ class CAS_Client
                 if (session()->getId() !== "") {
                     // session_unset();
                     // session_destroy();
-                    session()->flush();
+                    session()->forget('phpCAS');
                     session()->save();
                 }
                 // fix session ID
@@ -2005,10 +2007,10 @@ class CAS_Client
 
                 // Overwrite session
                 // session_start();
-                session()->start();
+                //session()->start();
                 // session_unset();
                 // session_destroy();
-                session()->flush();
+                session()->forget('phpCAS');
                 session()->save();
                 phpCAS::trace("Session ". $session_id . " destroyed");
             }

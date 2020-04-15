@@ -12,3 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - a typo in CAS_Client::hasSessionValue()
 
+### Changed
+- session->flush() to session->forget('phpCAS') to leave the main session intact
+
