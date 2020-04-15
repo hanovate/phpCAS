@@ -1154,7 +1154,7 @@ class CAS_Client
     {
         $this->validateSession($key);
 
-        return (session().has(static::PHPCAS_SESSION_PREFIX.'.'.$key));
+        return (session()->has(static::PHPCAS_SESSION_PREFIX.'.'.$key));
     }
 
     /**
