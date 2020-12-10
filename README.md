@@ -9,6 +9,7 @@ users via a Central Authentication Service (CAS) server.  This has been updated 
 utilize Laravel's session management methods instead of native PHP's $_SESSION, $_SERVER,
 $_POST, and $_GET variables.
 
+Checked with Laravel 8.18.1 as of 2020-12-10
 Checked with Laravel 7.6.0 as of 2020-04-14
 
 
